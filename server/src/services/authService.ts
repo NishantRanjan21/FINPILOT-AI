@@ -1,4 +1,6 @@
+import { pool } from "../config/database";
 import { userModel } from "../models/userModel";
+import { categoryModel } from "../models/categoryModel";
 import { RegisterInput, LoginInput } from "../types/auth";
 import { SafeUser, toSafeUser } from "../types/user";
 import { AppError } from "../utils/errors";
@@ -45,13 +47,29 @@ export const authService = {
 
     const passwordHash = await hashPassword(password);
 
-    const user = await userModel.createUser({
-      fullName,
-      email,
-      passwordHash
-    });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    return toSafeUser(user);
+      const user = await userModel.createUser(
+        {
+          fullName,
+          email,
+          passwordHash
+        },
+        client
+      );
+
+      await categoryModel.seedDefaultCategoriesForUser(user.id, client);
+
+      await client.query("COMMIT");
+      return toSafeUser(user);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async login(input: LoginInput): Promise<SafeUser> {

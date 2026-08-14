@@ -1,12 +1,17 @@
+import { PoolClient } from "pg";
 import { pool } from "../config/database";
 import { User } from "../types/user";
 
 export const userModel = {
-  async createUser(params: {
-    fullName: string;
-    email: string;
-    passwordHash: string;
-  }): Promise<User> {
+  async createUser(
+    params: {
+      fullName: string;
+      email: string;
+      passwordHash: string;
+    },
+    client?: PoolClient
+  ): Promise<User> {
+    const executor = client ?? pool;
     const query = `
       INSERT INTO users (full_name, email, password_hash)
       VALUES ($1, $2, $3)
@@ -14,7 +19,7 @@ export const userModel = {
     `;
     const values = [params.fullName, params.email, params.passwordHash];
 
-    const result = await pool.query<User>(query, values);
+    const result = await executor.query<User>(query, values);
     return result.rows[0];
   },
 

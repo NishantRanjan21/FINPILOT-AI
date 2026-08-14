@@ -7,6 +7,7 @@ import { errorHandler } from "./middlewares/errorMiddleware";
 import healthRoutes from "./routes/healthRoutes";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
+import categoryRoutes from "./routes/categoryRoutes";
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.use(requestLogger);
 app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/categories", categoryRoutes);
 
 // Phase 17:
 // In production, Express will serve the compiled React frontend
