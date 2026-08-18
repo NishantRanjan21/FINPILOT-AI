@@ -136,10 +136,13 @@ export const categoryModel = {
     return (result.rowCount ?? 0) > 0;
   },
 
-  async isCategoryInUse(_id: string): Promise<boolean> {
-    // Phase B4 transaction reference hook.
-    // When B4 introduces the transactions table, this query will be:
-    // SELECT COUNT(*) FROM transactions WHERE category_id = $1
-    return false;
+  async isCategoryInUse(id: string): Promise<boolean> {
+    const query = `
+      SELECT EXISTS (
+        SELECT 1 FROM transactions WHERE category_id = $1
+      ) AS in_use
+    `;
+    const result = await pool.query<{ in_use: boolean }>(query, [id]);
+    return result.rows[0]?.in_use === true;
   }
 };

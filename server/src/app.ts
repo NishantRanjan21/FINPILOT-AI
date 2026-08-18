@@ -8,6 +8,7 @@ import healthRoutes from "./routes/healthRoutes";
 import authRoutes from "./routes/authRoutes";
 import userRoutes from "./routes/userRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
+import transactionRoutes from "./routes/transactionRoutes";
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use("/api/health", healthRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
+app.use("/api/transactions", transactionRoutes);
 
 // Phase 17:
 // In production, Express will serve the compiled React frontend
