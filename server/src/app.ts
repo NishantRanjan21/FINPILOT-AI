@@ -10,6 +10,8 @@ import userRoutes from "./routes/userRoutes";
 import categoryRoutes from "./routes/categoryRoutes";
 import transactionRoutes from "./routes/transactionRoutes";
 import dashboardRoutes from "./routes/dashboardRoutes";
+import budgetRoutes from "./routes/budgetRoutes";
+import analyticsRoutes from "./routes/analyticsRoutes";
 
 const app = express();
 
@@ -30,6 +32,8 @@ app.use("/api/users", userRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/budgets", budgetRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Phase 17:
 // In production, Express will serve the compiled React frontend

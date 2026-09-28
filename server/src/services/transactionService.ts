@@ -7,6 +7,7 @@ import {
   PaginatedTransactions
 } from "../types/transactionTypes";
 import { AppError } from "../utils/errors";
+import { isValidDateString } from "./analyticsService";
 
 const RESTRICTED_FIELDS = new Set([
   "id",
@@ -163,7 +164,7 @@ export const transactionService = {
     filters: Record<string, any>
   ): Promise<PaginatedTransactions> {
     let page = 1;
-    if (filters.page !== undefined) {
+    if (filters.page !== undefined && filters.page !== "") {
       const parsedPage = Number(filters.page);
       if (isNaN(parsedPage) || parsedPage < 1 || !Number.isInteger(parsedPage)) {
         throw new AppError("Page must be a positive integer", 400);
@@ -172,7 +173,7 @@ export const transactionService = {
     }
 
     let limit = 20;
-    if (filters.limit !== undefined) {
+    if (filters.limit !== undefined && filters.limit !== "") {
       const parsedLimit = Number(filters.limit);
       if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100 || !Number.isInteger(parsedLimit)) {
         throw new AppError("Limit must be an integer between 1 and 100", 400);
@@ -188,11 +189,110 @@ export const transactionService = {
       typeFilter = filters.type as TransactionType;
     }
 
+    let searchFilter: string | undefined = undefined;
+    if (filters.search !== undefined && filters.search !== null) {
+      if (typeof filters.search !== "string") {
+        throw new AppError("Search parameter must be a string", 400);
+      }
+      const trimmed = filters.search.trim();
+      if (trimmed.length > 255) {
+        throw new AppError("Search query cannot exceed 255 characters", 400);
+      }
+      if (trimmed.length > 0) {
+        searchFilter = trimmed;
+      }
+    }
+
+    let categoryIdFilter: string | undefined = undefined;
+    const rawCategoryId = filters.category_id ?? filters.categoryId;
+    if (rawCategoryId !== undefined && rawCategoryId !== null && String(rawCategoryId).trim() !== "") {
+      if (typeof rawCategoryId !== "string") {
+        throw new AppError("category_id must be a string", 400);
+      }
+      const trimmedCat = rawCategoryId.trim();
+      const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+      if (!uuidRegex.test(trimmedCat)) {
+        throw new AppError("category_id must be a valid UUID", 400);
+      }
+      categoryIdFilter = trimmedCat;
+    }
+
+    let dateFromFilter: string | undefined = undefined;
+    let dateToFilter: string | undefined = undefined;
+
+    const rawDateFrom = filters.date_from ?? filters.dateFrom;
+    if (rawDateFrom !== undefined && rawDateFrom !== null && String(rawDateFrom).trim() !== "") {
+      if (typeof rawDateFrom !== "string" || !isValidDateString(rawDateFrom.trim())) {
+        throw new AppError("date_from must be a valid date in YYYY-MM-DD format", 400);
+      }
+      dateFromFilter = rawDateFrom.trim();
+    }
+
+    const rawDateTo = filters.date_to ?? filters.dateTo;
+    if (rawDateTo !== undefined && rawDateTo !== null && String(rawDateTo).trim() !== "") {
+      if (typeof rawDateTo !== "string" || !isValidDateString(rawDateTo.trim())) {
+        throw new AppError("date_to must be a valid date in YYYY-MM-DD format", 400);
+      }
+      dateToFilter = rawDateTo.trim();
+    }
+
+    if (dateFromFilter && dateToFilter && dateFromFilter > dateToFilter) {
+      throw new AppError("date_from cannot be after date_to", 400);
+    }
+
+    let minAmountFilter: number | undefined = undefined;
+    let maxAmountFilter: number | undefined = undefined;
+
+    const parseFilterAmount = (val: any, paramName: string): number => {
+      if (typeof val !== "number" && typeof val !== "string") {
+        throw new AppError(`${paramName} must be a valid numeric value`, 400);
+      }
+      const str = String(val).trim();
+      if (str === "" || str.includes("e") || str.includes("E")) {
+        throw new AppError(`${paramName} must be a valid numeric value`, 400);
+      }
+      const decimalRegex = /^\d+(\.\d{1,2})?$/;
+      if (!decimalRegex.test(str)) {
+        throw new AppError(
+          `${paramName} must be a non-negative number with at most 2 decimal places`,
+          400
+        );
+      }
+      const num = Number(str);
+      if (isNaN(num) || !isFinite(num) || num < 0) {
+        throw new AppError(`${paramName} must be greater than or equal to 0`, 400);
+      }
+      if (num > 999999999.99) {
+        throw new AppError(`${paramName} exceeds maximum limit (999,999,999.99)`, 400);
+      }
+      return num;
+    };
+
+    const rawMinAmount = filters.min_amount ?? filters.minAmount;
+    if (rawMinAmount !== undefined && rawMinAmount !== null && String(rawMinAmount).trim() !== "") {
+      minAmountFilter = parseFilterAmount(rawMinAmount, "min_amount");
+    }
+
+    const rawMaxAmount = filters.max_amount ?? filters.maxAmount;
+    if (rawMaxAmount !== undefined && rawMaxAmount !== null && String(rawMaxAmount).trim() !== "") {
+      maxAmountFilter = parseFilterAmount(rawMaxAmount, "max_amount");
+    }
+
+    if (minAmountFilter !== undefined && maxAmountFilter !== undefined && minAmountFilter > maxAmountFilter) {
+      throw new AppError("min_amount cannot be greater than max_amount", 400);
+    }
+
     let sortField: "transaction_date" | "amount" = "transaction_date";
     let sortOrder: "ASC" | "DESC" = "DESC";
 
     if (filters.sort !== undefined && typeof filters.sort === "string" && filters.sort.trim() !== "") {
-      const rawSort = filters.sort.trim().toLowerCase();
+      let rawSort = filters.sort.toLowerCase();
+      if (rawSort.startsWith(" ")) {
+        rawSort = "+" + rawSort.trim();
+      } else {
+        rawSort = rawSort.trim();
+      }
+
       if (rawSort === "date" || rawSort === "transaction_date" || rawSort === "-date" || rawSort === "-transaction_date" || rawSort === "date:desc" || rawSort === "date_desc") {
         sortField = "transaction_date";
         sortOrder = "DESC";
@@ -210,21 +310,28 @@ export const transactionService = {
       }
     }
 
+    const filterParams = {
+      userId,
+      type: typeFilter,
+      categoryId: categoryIdFilter,
+      search: searchFilter,
+      dateFrom: dateFromFilter,
+      dateTo: dateToFilter,
+      minAmount: minAmountFilter,
+      maxAmount: maxAmountFilter
+    };
+
     const offset = (page - 1) * limit;
 
     const [transactions, total] = await Promise.all([
       transactionModel.findMany({
-        userId,
-        type: typeFilter,
+        ...filterParams,
         sortField,
         sortOrder,
         limit,
         offset
       }),
-      transactionModel.countMany({
-        userId,
-        type: typeFilter
-      })
+      transactionModel.countMany(filterParams)
     ]);
 
     const totalPages = Math.ceil(total / limit) || 1;

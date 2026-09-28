@@ -197,6 +197,14 @@ export const categoryService = {
       );
     }
 
+    const inUseByBudgets = await categoryModel.isCategoryInUseByBudgets(categoryId);
+    if (inUseByBudgets) {
+      throw new AppError(
+        "Category cannot be deleted because it is linked to budgets",
+        409
+      );
+    }
+
     await categoryModel.deleteCategory(categoryId);
   }
 };

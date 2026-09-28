@@ -27,7 +27,11 @@ export interface SafeTransaction {
 export const toSafeTransaction = (transaction: Transaction): SafeTransaction => {
   let formattedDate: string;
   if (transaction.transaction_date instanceof Date) {
-    formattedDate = transaction.transaction_date.toISOString().split("T")[0];
+    const d = transaction.transaction_date;
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    formattedDate = `${year}-${month}-${day}`;
   } else if (typeof transaction.transaction_date === "string") {
     formattedDate = transaction.transaction_date.split("T")[0];
   } else {
@@ -68,6 +72,17 @@ export interface TransactionQueryFilters {
   limit?: number;
   sort?: string;
   type?: TransactionType;
+  search?: string;
+  category_id?: string;
+  categoryId?: string;
+  date_from?: string;
+  dateFrom?: string;
+  date_to?: string;
+  dateTo?: string;
+  min_amount?: number | string;
+  minAmount?: number | string;
+  max_amount?: number | string;
+  maxAmount?: number | string;
 }
 
 export interface PaginationMetadata {

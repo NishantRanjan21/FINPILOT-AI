@@ -144,5 +144,15 @@ export const categoryModel = {
     `;
     const result = await pool.query<{ in_use: boolean }>(query, [id]);
     return result.rows[0]?.in_use === true;
+  },
+
+  async isCategoryInUseByBudgets(id: string): Promise<boolean> {
+    const query = `
+      SELECT EXISTS (
+        SELECT 1 FROM budgets WHERE category_id = $1
+      ) AS in_use
+    `;
+    const result = await pool.query<{ in_use: boolean }>(query, [id]);
+    return result.rows[0]?.in_use === true;
   }
 };

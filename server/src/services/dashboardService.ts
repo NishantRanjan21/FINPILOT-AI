@@ -7,7 +7,10 @@ import {
 
 function formatDate(val: Date | string): string {
   if (val instanceof Date) {
-    return val.toISOString().split("T")[0];
+    const year = val.getFullYear();
+    const month = String(val.getMonth() + 1).padStart(2, "0");
+    const day = String(val.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
   if (typeof val === "string") {
     return val.split("T")[0];

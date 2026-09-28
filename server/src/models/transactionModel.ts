@@ -1,6 +1,60 @@
 import { pool } from "../config/database";
 import { Transaction, TransactionType } from "../types/transactionTypes";
 
+export interface TransactionFilterParams {
+  userId: string;
+  type?: TransactionType;
+  categoryId?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  minAmount?: number;
+  maxAmount?: number;
+}
+
+function buildTransactionWhere(params: TransactionFilterParams) {
+  const whereClauses = ["user_id = $1"];
+  const values: (string | number)[] = [params.userId];
+  let paramIndex = 2;
+
+  if (params.type) {
+    whereClauses.push(`type = $${paramIndex++}`);
+    values.push(params.type);
+  }
+
+  if (params.categoryId) {
+    whereClauses.push(`category_id = $${paramIndex++}`);
+    values.push(params.categoryId);
+  }
+
+  if (params.search) {
+    whereClauses.push(`description ILIKE $${paramIndex++} ESCAPE '\\'`);
+    values.push(`%${params.search.replace(/[%_\\]/g, "\\$&")}%`);
+  }
+
+  if (params.dateFrom) {
+    whereClauses.push(`transaction_date >= $${paramIndex++}`);
+    values.push(params.dateFrom);
+  }
+
+  if (params.dateTo) {
+    whereClauses.push(`transaction_date <= $${paramIndex++}`);
+    values.push(params.dateTo);
+  }
+
+  if (params.minAmount !== undefined) {
+    whereClauses.push(`amount >= $${paramIndex++}`);
+    values.push(params.minAmount);
+  }
+
+  if (params.maxAmount !== undefined) {
+    whereClauses.push(`amount <= $${paramIndex++}`);
+    values.push(params.maxAmount);
+  }
+
+  return { whereClauses, values, nextParamIndex: paramIndex };
+}
+
 export const transactionModel = {
   async createTransaction(params: {
     userId: string;
@@ -36,22 +90,13 @@ export const transactionModel = {
     return result.rows[0] ?? null;
   },
 
-  async findMany(params: {
-    userId: string;
-    type?: TransactionType;
+  async findMany(params: TransactionFilterParams & {
     sortField: "transaction_date" | "amount";
     sortOrder: "ASC" | "DESC";
     limit: number;
     offset: number;
   }): Promise<Transaction[]> {
-    const whereClauses = ["user_id = $1"];
-    const values: (string | number)[] = [params.userId];
-    let paramIndex = 2;
-
-    if (params.type) {
-      whereClauses.push(`type = $${paramIndex++}`);
-      values.push(params.type);
-    }
+    const { whereClauses, values, nextParamIndex } = buildTransactionWhere(params);
 
     let orderByClause: string;
     if (params.sortField === "transaction_date") {
@@ -61,10 +106,10 @@ export const transactionModel = {
     }
 
     values.push(params.limit);
-    const limitParamIndex = paramIndex++;
+    const limitParamIndex = nextParamIndex;
 
     values.push(params.offset);
-    const offsetParamIndex = paramIndex++;
+    const offsetParamIndex = nextParamIndex + 1;
 
     const query = `
       SELECT * FROM transactions
@@ -77,17 +122,8 @@ export const transactionModel = {
     return result.rows;
   },
 
-  async countMany(params: {
-    userId: string;
-    type?: TransactionType;
-  }): Promise<number> {
-    const whereClauses = ["user_id = $1"];
-    const values: string[] = [params.userId];
-
-    if (params.type) {
-      whereClauses.push(`type = $2`);
-      values.push(params.type);
-    }
+  async countMany(params: TransactionFilterParams): Promise<number> {
+    const { whereClauses, values } = buildTransactionWhere(params);
 
     const query = `
       SELECT COUNT(*) AS total FROM transactions
